@@ -3,9 +3,12 @@
 **Wizard Tower** is a study game for BUS 4040, Week 3, Part 2. It quizzes you on the
 course material from weeks 1 through 3 while zombies shuffle toward your tower.
 
-Open `index.html` by double clicking it. That is the whole install. There is no server,
-no build step, no internet connection, and no outside libraries. The HTML, the CSS, the
-JavaScript, the pixel art, the sound, and all twenty questions live in that one file.
+### ▶ [Play it here](https://ashaw117.github.io/bus-4040-week-3-homework-quiz-sim/)
+
+Or download `index.html` and double click it. That is the whole install. There is no
+server, no build step, no internet connection, and no outside libraries. The HTML, the
+CSS, the JavaScript, the pixel art, the sound, and all twenty questions live in that one
+file. The hosted link above is the same single file served by GitHub Pages.
 
 ---
 
