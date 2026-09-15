@@ -435,14 +435,16 @@ footer{
       Your spellbook is the course material from weeks 1 through 3.<br><br>
 
       <b>&gt; HOW IT WORKS</b><br>
-      &bull; 20 questions, shuffled fresh every run.<br>
-      &bull; <span class="hl">Right answer:</span> the fireball destroys the closest zombie.
-      +1 point, plus up to +5 for answering fast.<br>
+      &bull; 20 questions, shuffled fresh every run.
+      <span class="hl">You have to clear all 20 to win.</span><br>
+      &bull; <span class="hl">Right answer:</span> the fireball destroys the closest zombie,
+      and that question is done with you. +1 point, plus up to +5 for answering fast.<br>
       &bull; <span class="bad">Wrong answer:</span> the spell misfires and kills nothing.
-      The whole horde hops forward and your combo resets.<br>
+      The horde hops forward, your combo resets, and
+      <span class="bad">the question goes to the back of the line</span> until you get it right.<br>
       &bull; <span class="hl">Combo:</span> 3 right in a row and the blast takes 2 zombies.
       6 in a row and it takes 3.<br>
-      &bull; A zombie touches the tower and the run is over.<br>
+      &bull; The run ends one of two ways: you clear all 20, or a zombie touches the tower.<br>
       &bull; The clock stops while you read the explanation. Take your time there.<br>
       &bull; Waves get faster and thicker the longer you last.<br><br>
 
@@ -459,7 +461,7 @@ footer{
   <section id="screen-game" class="frame hidden">
     <div class="hud">
       <div class="cell"><span class="k">SCORE</span><span class="v" id="hud-score">0</span></div>
-      <div class="cell"><span class="k">QUESTION</span><span class="v" id="hud-q">1/20</span></div>
+      <div class="cell"><span class="k">CLEARED</span><span class="v" id="hud-q">0/20</span></div>
       <div class="cell"><span class="k">STREAK</span><span class="v" id="hud-streak">0</span></div>
       <div class="cell"><span class="k">SPEED BONUS</span><span class="v good" id="hud-bonus">+5</span></div>
       <div class="cell"><span class="k">WAVE</span><span class="v" id="hud-wave">1</span></div>
@@ -488,8 +490,8 @@ footer{
 
     <div class="stats">
       <div class="stat"><span class="k">FINAL SCORE</span><span class="v" id="res-score">0</span></div>
-      <div class="stat"><span class="k">CORRECT</span><span class="v good" id="res-right">0</span></div>
-      <div class="stat"><span class="k">MISSED</span><span class="v bad" id="res-wrong">0</span></div>
+      <div class="stat"><span class="k">CLEARED</span><span class="v good" id="res-right">0</span></div>
+      <div class="stat"><span class="k">WRONG ANSWERS</span><span class="v bad" id="res-wrong">0</span></div>
       <div class="stat"><span class="k">ACCURACY</span><span class="v" id="res-acc">0%</span></div>
       <div class="stat"><span class="k">BEST STREAK</span><span class="v" id="res-streak">0</span></div>
       <div class="stat"><span class="k">ZOMBIES SLAIN</span><span class="v" id="res-kills">0</span></div>
@@ -792,15 +794,15 @@ const QUESTIONS = [
    ========================================================== */
 
 const CFG = {
-  walkStart: 64,      // seconds to shamble across the field at wave 1
-  walkMin: 36,        // never quicker than this
-  walkStep: 1.4,      // seconds removed per wave
+  walkStart: 62,      // seconds to shamble across the field at wave 1
+  walkMin: 34,        // never quicker than this
+  walkStep: 2.0,      // seconds removed per wave
 
-  spawnStart: 12,     // seconds between zombies at wave 1
-  spawnMin: 7.5,      // never tighter than this
-  spawnStep: 0.35,    // seconds removed per wave
+  spawnStart: 10,     // seconds between zombies at wave 1
+  spawnMin: 5.5,      // never tighter than this
+  spawnStep: 0.5,     // seconds removed per wave
 
-  waveEvery: 28,      // seconds of live play per wave
+  waveEvery: 22,      // seconds of live play per wave
   firstSpawn: 6,      // grace so the first question is readable
   hopSeconds: 7,      // wrong answer penalty, about an eighth of the walk
 
@@ -820,8 +822,11 @@ const SECONDS_PER_BONUS_STEP = 3;
 
 const S = {
   mode: "title",        // title | asking | feedback | over
-  deck: [],             // questions for this run, shuffled
-  index: 0,
+  pool: [],             // every question in this run
+  queue: [],            // the ones still unsolved, in the order they come up
+  current: null,        // the question on screen right now
+  solved: 0,            // how many have been answered correctly
+  stats: null,          // Map: question -> { wrong, attempts, solved }
   score: 0,
   streak: 0,
   bestStreak: 0,
@@ -1387,8 +1392,12 @@ function flashDanger() {
    ========================================================== */
 
 function startRun(deck) {
-  S.deck = deck;
-  S.index = 0;
+  S.pool = deck;
+  S.queue = deck.slice();
+  S.current = null;
+  S.solved = 0;
+  S.stats = new Map();
+  deck.forEach((q) => S.stats.set(q, { wrong: 0, attempts: 0, solved: false }));
   S.score = 0;
   S.streak = 0;
   S.bestStreak = 0;
@@ -1415,13 +1424,17 @@ function startRun(deck) {
 }
 
 function askQuestion() {
-  const q = S.deck[S.index];
+  const q = S.queue[0];
+  S.current = q;
   S.mode = "asking";
   S.askedAt = performance.now();
 
-  el("hud-q").textContent = (S.index + 1) + "/" + S.deck.length;
+  const seenBefore = S.stats.get(q).attempts > 0;
+  el("hud-q").textContent = S.solved + "/" + S.pool.length;
   el("q-topic").textContent = q.topic.toUpperCase();
-  el("q-type").textContent = q.type === "tf" ? "TRUE OR FALSE" : "MULTIPLE CHOICE";
+  el("q-type").textContent =
+    (seenBefore ? "SECOND CHANCE - " : "") +
+    (q.type === "tf" ? "TRUE OR FALSE" : "MULTIPLE CHOICE");
   el("q-text").textContent = q.q;
   el("feedback-slot").innerHTML = "";
 
@@ -1443,12 +1456,26 @@ function askQuestion() {
 function answer(choiceIndex) {
   if (S.mode !== "asking") return;
 
-  const q = S.deck[S.index];
+  const q = S.current;
   const correct = choiceIndex === q.answer;
   const seconds = (performance.now() - S.askedAt) / 1000;
   const bonus = correct ? currentBonus() : 0;
+  const st = S.stats.get(q);
 
   S.mode = "feedback";
+  st.attempts++;
+
+  // A question is only finished with you once you get it right. Miss it and it
+  // goes to the back of the line, so the run ends when you have cleared all
+  // twenty or a zombie reaches the tower, never just because time ran out.
+  S.queue.shift();
+  if (correct) {
+    st.solved = true;
+    S.solved++;
+  } else {
+    st.wrong++;
+    S.queue.push(q);
+  }
 
   // scoring and streaks
   if (correct) {
@@ -1474,6 +1501,7 @@ function answer(choiceIndex) {
 
   el("hud-score").textContent = String(S.score);
   el("hud-streak").textContent = String(S.streak);
+  el("hud-q").textContent = S.solved + "/" + S.pool.length;
 
   // lock the buttons and colour them
   const buttons = el("q-choices").querySelectorAll(".choice");
@@ -1510,7 +1538,8 @@ function showFeedback(q, correct, bonus, pierce) {
       (pierce > 1 ? "  COMBO x" + S.streak + ", BLAST TAKES " + pierce : "");
   } else {
     pts.innerHTML = "NO POINTS &middot; THE SPELL MISFIRES &middot; EVERY ZOMBIE HOPS " +
-      CFG.hopSeconds + " SECONDS CLOSER &middot; COMBO LOST";
+      CFG.hopSeconds + " SECONDS CLOSER &middot; COMBO LOST &middot; " +
+      "THIS QUESTION GOES TO THE BACK OF THE LINE";
   }
   box.appendChild(pts);
 
@@ -1526,8 +1555,10 @@ function showFeedback(q, correct, bonus, pierce) {
 
   const next = document.createElement("button");
   next.className = "btn small";
-  const last = S.index === S.deck.length - 1;
-  next.textContent = last ? "FINISH RUN  [ENTER]" : "NEXT QUESTION  [ENTER]";
+  const left = S.queue.length;
+  next.textContent = left === 0
+    ? "TOWER HELD  [ENTER]"
+    : "NEXT QUESTION  (" + left + " TO GO)  [ENTER]";
   next.addEventListener("click", nextQuestion);
   box.appendChild(next);
 
@@ -1537,11 +1568,10 @@ function showFeedback(q, correct, bonus, pierce) {
 
 function nextQuestion() {
   if (S.mode !== "feedback") return;
-  if (S.index >= S.deck.length - 1) {
+  if (S.queue.length === 0) {     // every question has been answered correctly
     endRun("win");
     return;
   }
-  S.index++;
   askQuestion();
 }
 
@@ -1562,9 +1592,8 @@ function showResults() {
   scResults.classList.remove("hidden");
   window.scrollTo(0, 0);
 
-  const right = S.results.filter((r) => r.correct).length;
-  const wrong = S.results.length - right;
-  const acc = S.results.length ? Math.round((right / S.results.length) * 100) : 0;
+  const wrong = S.results.filter((r) => !r.correct).length;
+  const acc = S.results.length ? Math.round((S.solved / S.results.length) * 100) : 0;
   const won = S.outcome === "win";
 
   const banner = el("res-banner");
@@ -1572,11 +1601,12 @@ function showResults() {
   banner.className = "banner " + (won ? "win" : "lose");
 
   el("res-sub").textContent = won
-    ? "You answered all " + S.deck.length + " questions and the horde never reached you."
-    : "A zombie reached the tower after " + S.results.length + " of " + S.deck.length + " questions.";
+    ? "You cleared all " + S.pool.length + " questions and the horde never reached you."
+    : "A zombie reached the tower with " + S.solved + " of " + S.pool.length +
+      " questions cleared and " + S.queue.length + " still to go.";
 
   el("res-score").textContent = String(S.score);
-  el("res-right").textContent = String(right);
+  el("res-right").textContent = String(S.solved);
   el("res-wrong").textContent = String(wrong);
   el("res-acc").textContent = acc + "%";
   el("res-streak").textContent = String(S.bestStreak);
@@ -1587,66 +1617,69 @@ function showResults() {
   renderConcepts();
   renderReview();
 
-  const missed = S.results.filter((r) => !r.correct);
-  el("btn-retry-missed").classList.toggle("hidden", missed.length === 0);
+  el("btn-retry-missed").classList.toggle("hidden", troubleQuestions().length === 0);
+}
+
+// Anything you got wrong at least once, plus anything you never cleared.
+function troubleQuestions() {
+  return S.pool.filter((q) => {
+    const st = S.stats.get(q);
+    return st.wrong > 0 || !st.solved;
+  });
 }
 
 function renderConcepts() {
   const host = el("res-concepts");
   host.innerHTML = "";
 
-  const missed = S.results.filter((r) => !r.correct);
-  const unseen = S.deck.slice(S.results.length);
-
-  if (missed.length === 0 && unseen.length === 0) {
+  const trouble = troubleQuestions();
+  if (trouble.length === 0) {
     const ok = document.createElement("div");
     ok.className = "all-clear";
-    ok.textContent = "PERFECT RUN. NOTHING TO REVIEW.";
+    ok.textContent = "PERFECT RUN. EVERY QUESTION RIGHT FIRST TIME.";
     host.appendChild(ok);
     return;
   }
 
-  // group the misses by topic
+  // group by topic, counting how many times each cost you
   const groups = {};
-  missed.forEach((r) => {
-    const key = r.q.topic;
-    if (!groups[key]) groups[key] = { topic: key, week: r.q.week, count: 0 };
-    groups[key].count++;
+  trouble.forEach((q) => {
+    const st = S.stats.get(q);
+    if (!groups[q.topic]) {
+      groups[q.topic] = { topic: q.topic, week: q.week, misses: 0, unseen: 0, unsolved: 0 };
+    }
+    const g = groups[q.topic];
+    g.misses += st.wrong;
+    if (st.attempts === 0) g.unseen++;
+    else if (!st.solved) g.unsolved++;
   });
 
   const list = document.createElement("ul");
   list.className = "concepts";
 
   Object.keys(groups)
-    .sort((a, b) => groups[b].count - groups[a].count)
+    .sort((a, b) => groups[b].misses - groups[a].misses)
     .forEach((key) => {
       const g = groups[key];
+      const bits = [];
+      if (g.misses) bits.push("MISSED " + g.misses + (g.misses === 1 ? " TIME" : " TIMES"));
+      if (g.unsolved) bits.push(g.unsolved + " NEVER CLEARED");
+      if (g.unseen) bits.push(g.unseen + " NEVER CAME UP");
+
       const li = document.createElement("li");
-      li.innerHTML =
-        '<span class="cn"></span><br>' +
-        '<span class="cw"></span> <span class="cc"></span>';
+      if (!g.misses) li.style.borderLeftColor = "#49d5e8";
+      li.innerHTML = '<span class="cn"></span><br><span class="cw"></span> <span class="cc"></span>';
       li.querySelector(".cn").textContent = g.topic;
       li.querySelector(".cw").textContent = "GO BACK TO WEEK " + g.week;
-      li.querySelector(".cc").innerHTML =
-        "&middot; MISSED " + g.count + (g.count === 1 ? " QUESTION" : " QUESTIONS");
+      li.querySelector(".cc").innerHTML = "&middot; " + bits.join(" &middot; ");
       list.appendChild(li);
     });
-
-  if (unseen.length) {
-    const li = document.createElement("li");
-    li.style.borderLeftColor = "#49d5e8";
-    li.innerHTML =
-      '<span class="cn"></span><br><span class="cw"></span>';
-    li.querySelector(".cn").textContent =
-      unseen.length + " question" + (unseen.length === 1 ? "" : "s") + " never came up";
-    li.querySelector(".cw").textContent =
-      "SURVIVE LONGER TO SEE THE REST OF THE DECK";
-    list.appendChild(li);
-  }
 
   host.appendChild(list);
 }
 
+// One row per question rather than per attempt, since a missed question can
+// come round several times before you clear it.
 function renderReview() {
   const host = el("res-review");
   host.innerHTML = "";
@@ -1656,40 +1689,58 @@ function renderReview() {
     return;
   }
 
-  S.results.forEach((r, n) => {
+  // troublesome ones first, then cleared, then never seen
+  const rank = (q) => {
+    const st = S.stats.get(q);
+    if (st.attempts === 0) return 3;
+    if (!st.solved) return 0;
+    return st.wrong > 0 ? 1 : 2;
+  };
+  const ordered = S.pool.slice().sort((a, b) => rank(a) - rank(b));
+
+  ordered.forEach((q, n) => {
+    const st = S.stats.get(q);
+    const clean = st.solved && st.wrong === 0;
+
     const item = document.createElement("div");
-    item.className = "review-item " + (r.correct ? "ok" : "no");
+    item.className = "review-item " + (clean ? "ok" : "no");
+    if (st.attempts === 0) item.style.borderLeftColor = "#49d5e8";
 
-    const q = document.createElement("span");
-    q.className = "rq";
-    q.textContent = (n + 1) + ". " + r.q.q;
-    item.appendChild(q);
+    const head = document.createElement("span");
+    head.className = "rq";
+    head.textContent = (n + 1) + ". " + q.q;
+    item.appendChild(head);
 
-    const yours = document.createElement("span");
-    yours.className = "rl";
-    yours.innerHTML = "YOUR ANSWER: <b></b>";
-    const yb = yours.querySelector("b");
-    yb.textContent = r.q.choices[r.chosen];
-    yb.className = r.correct ? "ra-ok" : "ra-no";
-    item.appendChild(yours);
-
-    if (!r.correct) {
-      const truth = document.createElement("span");
-      truth.className = "rl";
-      truth.innerHTML = "CORRECT ANSWER: <b class=\"ra-ok\"></b>";
-      truth.querySelector("b").textContent = r.q.choices[r.q.answer];
-      item.appendChild(truth);
+    const status = document.createElement("span");
+    status.className = "rl";
+    if (st.attempts === 0) {
+      status.innerHTML = "<b>NEVER CAME UP</b>";
+    } else if (clean) {
+      status.innerHTML = "<b class=\"ra-ok\">RIGHT FIRST TIME</b>";
+    } else if (st.solved) {
+      status.innerHTML = "<b class=\"ra-no\">MISSED " + st.wrong +
+        (st.wrong === 1 ? " TIME" : " TIMES") + "</b>, then cleared";
+    } else {
+      status.innerHTML = "<b class=\"ra-no\">NEVER CLEARED</b> after " + st.attempts +
+        (st.attempts === 1 ? " try" : " tries");
     }
+    item.appendChild(status);
+
+    const truth = document.createElement("span");
+    truth.className = "rl";
+    truth.innerHTML = "CORRECT ANSWER: <b class=\"ra-ok\"></b>";
+    truth.querySelector("b").textContent = q.choices[q.answer];
+    item.appendChild(truth);
 
     const why = document.createElement("span");
     why.className = "rl";
     why.style.marginTop = "6px";
-    why.textContent = r.q.why;
+    why.textContent = q.why;
     item.appendChild(why);
 
     const wk = document.createElement("span");
     wk.className = "rw";
-    wk.textContent = "WEEK " + r.q.week + " - " + r.q.topic.toUpperCase();
+    wk.textContent = "WEEK " + q.week + " - " + q.topic.toUpperCase();
     item.appendChild(wk);
 
     host.appendChild(item);
@@ -1710,9 +1761,9 @@ el("btn-play-again").addEventListener("click", () => {
 });
 
 el("btn-retry-missed").addEventListener("click", () => {
-  const missed = S.results.filter((r) => !r.correct).map((r) => r.q);
-  if (!missed.length) return;
-  startRun(shuffle(missed));
+  const trouble = troubleQuestions();
+  if (!trouble.length) return;
+  startRun(shuffle(trouble));
 });
 
 el("btn-sound").addEventListener("click", (e) => {
@@ -1723,7 +1774,7 @@ el("btn-sound").addEventListener("click", (e) => {
 
 document.addEventListener("keydown", (e) => {
   if (S.mode === "asking") {
-    const q = S.deck[S.index];
+    const q = S.current;
     if (q.type === "tf") {
       if (e.key === "t" || e.key === "T") answer(0);
       if (e.key === "f" || e.key === "F") answer(1);

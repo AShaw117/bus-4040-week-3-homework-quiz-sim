@@ -26,16 +26,22 @@ spawn on the right and walk left. If one touches the tower, the run ends.
 
 | Event | What happens |
 |---|---|
-| Correct answer | The fireball destroys the closest zombie. +1 point, plus up to +5 for answering fast |
-| Wrong answer | The spell misfires and kills nothing. Every zombie hops 7 seconds closer and the combo resets |
+| Correct answer | The fireball destroys the closest zombie and that question is done. +1 point, plus up to +5 for answering fast |
+| Wrong answer | The spell misfires and kills nothing. Every zombie hops 7 seconds closer, the combo resets, and the question goes to the back of the line |
 | 3 correct in a row | Combo: the blast takes 2 zombies |
 | 6 correct in a row | Combo: the blast takes 3 |
 | A zombie reaches the tower | Run over |
-| All 20 answered | You win, the banner reads TOWER HELD |
+| All 20 cleared | You win, the banner reads TOWER HELD |
 
 A wrong answer is pure punishment. The bolt still leaves the staff, but it droops,
 guts out in a puff of smoke, and the horde jumps forward while you read why you were
 wrong. Killing anything requires getting the question right.
+
+**You have to clear all twenty to win.** A question you miss is not gone, it goes to
+the back of the queue and comes round again, flagged as a second chance, until you get
+it right. The run has no fixed length: it ends when you clear the board or when a zombie
+touches the tower. The counter in the corner reads cleared out of twenty, not question
+number, because a bad run can take thirty attempts to clear twenty questions.
 
 The clock runs while you read the question and stops while you read the explanation. The
 pressure is on recall, not on reading the teaching part.
@@ -43,11 +49,13 @@ pressure is on recall, not on reading the teaching part.
 **Waves.** Every 28 seconds of live play the wave advances. Zombies walk faster and spawn
 closer together, down to a floor so it never becomes impossible.
 
-**The end screen.** Score, correct, missed, accuracy, best streak, zombies destroyed, wave
-reached, and time survived. Below that is a **Concepts to work on** list that groups every
-miss by topic and names the week to review, then a full answer review of every question you
-saw. If you missed anything, a **Retry missed only** button rebuilds the deck from just
-those questions so you can drill them.
+**The end screen.** Score, questions cleared, wrong answers, accuracy, best streak, zombies
+destroyed, wave reached, and time survived. Below that is a **Concepts to work on** list that
+groups trouble by topic and names the week to review, saying how many times each topic cost
+you and whether anything was never cleared. Then comes a review of all twenty questions,
+sorted worst first: never cleared, then missed before clearing, then right first time, then
+never came up. A **Retry missed only** button rebuilds the deck from anything you fumbled or
+never reached.
 
 **Controls.** Click an answer, or press `1` `2` `3` `4`. True or false takes `T` or `F`.
 `Enter` moves on after the explanation. Sound can be switched off on the title screen.
@@ -125,13 +133,21 @@ survive long enough to face three or four of your answers, so that a single miss
 rather than a death. Zombies now shamble slowly across a long field and spawn close together,
 which also keeps four or five on screen and stops the shot-wasting. The result:
 
-| Player | Win rate | Questions seen |
+**Then I tightened the screws.** Once it played properly I made the zombies quicker, cut the
+respawn gap, and steepened the wave ramp, and I changed the win condition so a missed question
+comes back instead of the run simply ending after twenty.
+
+The simulation made an unexpected split clear. The requeue rule is almost difficulty neutral on
+its own, because a repeat is answered fast and confidently right after you have read the
+explanation. It actually raises the number of questions a middling player clears. Nearly all
+of the added difficulty comes from the speed changes:
+
+| Player | Win rate, before | Win rate, after |
 |---|---|---|
-| 7 seconds per question, 95% correct | 100% | 20 |
-| 9 seconds, 85% correct | 98% | 20 |
-| 11 seconds, 75% correct | 62% | 17 |
-| 13 seconds, 60% correct | 5% | 9 |
-| 16 seconds, 45% correct | 0% | 5 |
+| 7 seconds per question, 95% correct | 100% | 100% |
+| 9 seconds, 85% correct | 98% | 85% |
+| 11 seconds, 75% correct | 60% | 21% |
+| 13 seconds, 60% correct | 4% | 1% |
 
 That is the curve I wanted. Knowing the material and answering promptly wins. Guessing loses,
 and losing hands you a list of what to review.
