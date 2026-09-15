@@ -23,13 +23,16 @@ spawn on the right and walk left. If one touches the tower, the run ends.
 
 | Event | What happens |
 |---|---|
-| Any answer | The wizard fires a fireball at the closest zombie |
-| Correct answer | +1 point, plus up to +5 for answering fast. The blast clears 2 zombies |
-| Wrong answer | No points. The spell fizzles and gets only 1. Every zombie hops 2 seconds closer |
-| 3 correct in a row | The blast widens to 3 zombies |
-| 6 correct in a row | The blast widens to 4 |
+| Correct answer | The fireball destroys the closest zombie. +1 point, plus up to +5 for answering fast |
+| Wrong answer | The spell misfires and kills nothing. Every zombie hops 7 seconds closer and the combo resets |
+| 3 correct in a row | Combo: the blast takes 2 zombies |
+| 6 correct in a row | Combo: the blast takes 3 |
 | A zombie reaches the tower | Run over |
 | All 20 answered | You win, the banner reads TOWER HELD |
+
+A wrong answer is pure punishment. The bolt still leaves the staff, but it droops,
+guts out in a puff of smoke, and the horde jumps forward while you read why you were
+wrong. Killing anything requires getting the question right.
 
 The clock runs while you read the question and stops while you read the explanation. The
 pressure is on recall, not on reading the teaching part.
@@ -102,19 +105,37 @@ seconds to read a question means one gets through no matter how many the firebal
 Killing more per shot clears a backlog; it does nothing about the cadence.
 
 That reframing pointed at the fix. The spawn interval has to be in the same range as the time
-a person actually spends reading a question, so I slowed it and let the blast take the zombie
-behind the target as well. The result across simulated profiles:
+a person actually spends reading a question.
+
+**Then the rules changed and it had to be rebuilt.** A wrong answer originally still destroyed
+one zombie. That felt wrong: being wrong should not be rewarded. So a miscast now kills nothing
+at all, and a correct answer kills exactly one unless a combo is running.
+
+That single change broke the balance again, and the simulation found a second failure mode I had
+not expected. With spawns made rare enough to keep up, the field sat **empty** most of the time,
+so shots were wasted on nothing. Then a lone zombie would appear, and because it only lived long
+enough to face about two answers, one wrong guess at the wrong moment was fatal. The game was
+being decided by a coin flip rather than by knowledge.
+
+The real lever turned out to be the length of the walk, not the spawn rate. Each zombie has to
+survive long enough to face three or four of your answers, so that a single miss is a setback
+rather than a death. Zombies now shamble slowly across a long field and spawn close together,
+which also keeps four or five on screen and stops the shot-wasting. The result:
 
 | Player | Win rate | Questions seen |
 |---|---|---|
 | 7 seconds per question, 95% correct | 100% | 20 |
-| 9 seconds, 85% correct | 100% | 20 |
-| 11 seconds, 75% correct | 94% | 20 |
-| 13 seconds, 60% correct | 27% | 14 |
-| 16 seconds, 45% correct | 0% | 4 |
+| 9 seconds, 85% correct | 98% | 20 |
+| 11 seconds, 75% correct | 62% | 17 |
+| 13 seconds, 60% correct | 5% | 9 |
+| 16 seconds, 45% correct | 0% | 5 |
 
 That is the curve I wanted. Knowing the material and answering promptly wins. Guessing loses,
 and losing hands you a list of what to review.
+
+One more bug the tests caught: at a 3 zombie combo the blast only ever killed 2. After the
+fireball destroyed its target it kept flying flat and sailed over anything standing in a lower
+lane. It now re-aims at the next closest zombie after each kill.
 
 **A smaller thing that did not work:** the built in PDF reader could not open a scanned file
 earlier in the week, so the source had to be pulled out with a small Python library instead.
