@@ -436,13 +436,12 @@ footer{
 
       <b>&gt; HOW IT WORKS</b><br>
       &bull; 20 questions, shuffled fresh every run.<br>
-      &bull; <span class="hl">Every answer fires a fireball</span> at the closest zombie.<br>
-      &bull; <span class="hl">Right answer:</span> +1 point, plus up to +5 for answering fast.
-      The blast clears 2 zombies.<br>
-      &bull; <span class="bad">Wrong answer:</span> no points, the spell fizzles and only gets 1,
-      and every zombie hops 2 seconds closer.<br>
-      &bull; <span class="hl">3 right in a row:</span> the blast widens to 3.
-      <span class="hl">6 in a row:</span> 4.<br>
+      &bull; <span class="hl">Right answer:</span> the fireball destroys the closest zombie.
+      +1 point, plus up to +5 for answering fast.<br>
+      &bull; <span class="bad">Wrong answer:</span> the spell misfires and kills nothing.
+      The whole horde hops forward and your combo resets.<br>
+      &bull; <span class="hl">Combo:</span> 3 right in a row and the blast takes 2 zombies.
+      6 in a row and it takes 3.<br>
       &bull; A zombie touches the tower and the run is over.<br>
       &bull; The clock stops while you read the explanation. Take your time there.<br>
       &bull; Waves get faster and thicker the longer you last.<br><br>
@@ -793,17 +792,17 @@ const QUESTIONS = [
    ========================================================== */
 
 const CFG = {
-  walkStart: 17,      // seconds to cross the field at wave 1
-  walkMin: 11,        // never quicker than this
-  walkStep: 0.4,      // seconds removed per wave
+  walkStart: 64,      // seconds to shamble across the field at wave 1
+  walkMin: 36,        // never quicker than this
+  walkStep: 1.4,      // seconds removed per wave
 
-  spawnStart: 13,     // seconds between zombies at wave 1
-  spawnMin: 7,        // never tighter than this
-  spawnStep: 0.25,    // seconds removed per wave
+  spawnStart: 12,     // seconds between zombies at wave 1
+  spawnMin: 7.5,      // never tighter than this
+  spawnStep: 0.35,    // seconds removed per wave
 
   waveEvery: 28,      // seconds of live play per wave
-  firstSpawn: 7,      // grace so the first question is readable
-  hopSeconds: 2,      // wrong answer penalty
+  firstSpawn: 6,      // grace so the first question is readable
+  hopSeconds: 7,      // wrong answer penalty, about an eighth of the walk
 
   // geometry, in canvas pixels
   spawnX: 332,
@@ -895,6 +894,11 @@ function noiseBurst(dur, vol) {
 const SFX = {
   shoot:  () => blip(680, 0.18, "square", 0.05, 180),
   hit:    () => { noiseBurst(0.18, 0.09); blip(150, 0.14, "sawtooth", 0.04, 60); },
+  // a miscast leaves the staff sounding weak and dies out with a wet hiss
+  fizzleCast: () => blip(300, 0.22, "triangle", 0.04, 120),
+  fizzleOut:  () => noiseBurst(0.13, 0.04),
+  // three quick thumps as the horde jumps forward
+  hop:    () => [0, 70, 140].forEach((d) => setTimeout(() => blip(95, 0.09, "triangle", 0.05, 70), d)),
   right:  () => { blip(660, 0.09, "square", 0.05); setTimeout(() => blip(990, 0.14, "square", 0.05), 90); },
   wrong:  () => blip(190, 0.3, "square", 0.06, 80),
   spawn:  () => blip(110, 0.1, "triangle", 0.03),
@@ -1072,11 +1076,15 @@ function drawWizard(t, casting) {
 
 function drawZombie(z, t) {
   const x = z.x | 0;
-  const y = z.lane;
-  const step = Math.floor(t * 6 + z.seed) % 2;
+  const lift = z.yOff || 0;
+  const y = (z.lane + lift) | 0;
+  // legs tuck up mid hop instead of shuffling
+  const hopping = z.hopT < 1;
+  const step = hopping ? 0 : Math.floor(t * 6 + z.seed) % 2;
 
-  // shadow
-  px(x - 1, y, 14, 2, "rgba(0,0,0,.35)");
+  // shadow stays on the ground and shrinks as the zombie rises
+  const shrink = Math.round(-lift / 3);
+  px(x - 1 + shrink, z.lane, 14 - shrink * 2, 2, "rgba(0,0,0,.35)");
 
   // legs
   px(x + 2, y - 6, 3, 6, step ? "#2c5c2c" : "#254f25");
@@ -1105,6 +1113,17 @@ function drawZombie(z, t) {
 
 function drawFireball(f) {
   const x = f.x | 0, y = f.y | 0;
+
+  if (f.dud) {
+    // a guttering miscast: cold purple, sputtering trail, no core
+    for (let i = 1; i <= 3; i++) {
+      px(x - i * 3, y - (i % 2), 2, 2, i === 1 ? "#6b4a9e" : "#3b2a55");
+    }
+    px(x - 1, y - 1, 4, 4, "#8b5fc4");
+    px(x, y, 2, 2, "#c9a8e8");
+    return;
+  }
+
   // trail
   for (let i = 1; i <= 3; i++) {
     px(x - i * 3, y + (i % 2), 2, 2, i === 1 ? "#f0842b" : "#a33c14");
@@ -1117,6 +1136,17 @@ function drawFireball(f) {
 function drawBurst(b) {
   const r = b.r | 0;
   const cx = b.x | 0, cy = b.y | 0;
+
+  if (b.dud) {
+    // a soft puff of smoke rather than an explosion
+    const col = b.life > 0.16 ? "#6b6b8c" : "#3d3d55";
+    px(cx - r, cy - 2, 3, 3, col);
+    px(cx + r - 3, cy - 1, 3, 3, col);
+    px(cx - 2, cy - r, 3, 3, col);
+    px(cx - 1, cy - 1, 3, 3, col);
+    return;
+  }
+
   const col = b.life > 0.22 ? "#ffd86b" : "#e0403a";
   px(cx - r, cy - 1, r * 2, 3, col);
   px(cx - 1, cy - r, 3, r * 2, col);
@@ -1161,29 +1191,54 @@ function spawnZombie() {
     x: CFG.spawnX,
     lane: CFG.lanes[Math.floor(Math.random() * CFG.lanes.length)],
     speed: dist / walk,           // pixels per second
-    seed: Math.random() * 10
+    seed: Math.random() * 10,
+    hopT: 1,                      // 1 means "not hopping"
+    yOff: 0
   });
   SFX.spawn();
 }
 
+// A wrong answer sends every zombie hopping forward. Animating the jump rather
+// than teleporting them makes the penalty legible: you see the ground you lost.
+function hopHorde() {
+  S.zombies.forEach((z) => {
+    z.hopFrom = z.x;
+    z.hopTo = z.x - z.speed * CFG.hopSeconds;
+    z.hopT = 0;
+    z.hopDur = 0.5;
+  });
+  if (S.zombies.length) SFX.hop();
+}
+
+// pierce is how many zombies the blast destroys. Zero means a miscast: the bolt
+// still leaves the staff, but it loses power and fizzles out before it lands.
 function fireAt(pierce) {
   castTimer = 0.35;
-  SFX.shoot();
-  // closest zombie is the one with the smallest x
+  const dud = pierce <= 0;
+  if (dud) SFX.fizzleCast(); else SFX.shoot();
+
   let target = null;
-  S.zombies.forEach((z) => { if (!target || z.x < target.x) target = z; });
+  if (!dud) S.zombies.forEach((z) => { if (!target || z.x < target.x) target = z; });
+
   S.fireballs.push({
     x: CFG.staff.x,
     y: CFG.staff.y,
+    vy: dud ? -40 : 0,
     target: target,
     pierce: pierce,
-    life: 3
+    dud: dud,
+    life: dud ? 1.2 : 3
   });
 }
 
 function boom(x, y) {
-  S.bursts.push({ x: x, y: y, r: 2, life: 0.4 });
+  S.bursts.push({ x: x, y: y, r: 2, life: 0.4, dud: false });
   SFX.hit();
+}
+
+function fizzle(x, y) {
+  S.bursts.push({ x: x, y: y, r: 2, life: 0.3, dud: true });
+  SFX.fizzleOut();
 }
 
 /* ==========================================================
@@ -1219,8 +1274,9 @@ function tick(now) {
       spawnZombie();
     }
 
-    // zombies advance
+    // zombies advance, except any that are mid hop, whose jump drives them
     for (let i = 0; i < S.zombies.length; i++) {
+      if (S.zombies[i].hopT < 1) continue;
       S.zombies[i].x -= S.zombies[i].speed * dt;
     }
 
@@ -1238,10 +1294,36 @@ function tick(now) {
     }
   }
 
+  // Hops run even while the quiz is paused, so you watch the horde gain ground
+  // while the explanation is on screen.
+  for (let i = 0; i < S.zombies.length; i++) {
+    const z = S.zombies[i];
+    if (z.hopT < 1) {
+      z.hopT = Math.min(1, z.hopT + dt / z.hopDur);
+      const ease = 1 - Math.pow(1 - z.hopT, 2);
+      z.x = z.hopFrom + (z.hopTo - z.hopFrom) * ease;
+      z.yOff = -Math.sin(Math.PI * z.hopT) * 9;
+    } else {
+      z.yOff = 0;
+    }
+  }
+
   // fireballs fly even while the quiz is paused, so the shot resolves
   for (let i = S.fireballs.length - 1; i >= 0; i--) {
     const f = S.fireballs[i];
     f.life -= dt;
+
+    // A miscast never reaches the horde. It lobs out, droops, and gutters out.
+    if (f.dud) {
+      f.x += 115 * dt;
+      f.vy += 250 * dt;
+      f.y += f.vy * dt;
+      if (f.y >= CFG.lanes[0] - 6 || f.life <= 0) {
+        fizzle(f.x, Math.min(f.y, CFG.lanes[0] - 6));
+        S.fireballs.splice(i, 1);
+      }
+      continue;
+    }
 
     // steer toward the target if it is still alive
     let dx = 1, dy = 0;
@@ -1263,7 +1345,16 @@ function tick(now) {
         S.zombies.splice(j, 1);
         S.kills++;
         f.pierce--;
-        if (f.pierce <= 0) { f.life = -1; }
+        if (f.pierce <= 0) {
+          f.life = -1;
+        } else {
+          // A combo blast carries on to the next zombie. Re-aim at the new
+          // closest one, otherwise the bolt flies flat and sails over anything
+          // standing in a lower lane.
+          let next = null;
+          S.zombies.forEach((other) => { if (!next || other.x < next.x) next = other; });
+          f.target = next;
+        }
         break;
       }
     }
@@ -1368,16 +1459,16 @@ function answer(choiceIndex) {
   } else {
     S.streak = 0;
     SFX.wrong();
-    // the horde lurches forward by two seconds of walking
-    S.zombies.forEach((z) => { z.x -= z.speed * CFG.hopSeconds; });
     flashDanger();
   }
 
-  // Every answer throws a fireball. A correct one lands as a proper blast and
-  // catches the zombie behind the target too; a long streak widens the blast.
-  // A wrong answer still fires, but the spell fizzles and only takes out one.
-  const pierce = correct ? (S.streak >= 6 ? 4 : S.streak >= 3 ? 3 : 2) : 1;
+  // One right answer destroys one zombie. Nothing more, unless a combo is
+  // running: 3 in a row makes the blast take 2, and 6 in a row takes 3.
+  // A wrong answer kills nothing at all. The spell miscasts and the whole
+  // horde hops forward instead.
+  const pierce = correct ? (S.streak >= 6 ? 3 : S.streak >= 3 ? 2 : 1) : 0;
   fireAt(pierce);
+  if (!correct) hopHorde();
 
   S.results.push({ q: q, chosen: choiceIndex, correct: correct, seconds: seconds });
 
@@ -1399,7 +1490,7 @@ function answer(choiceIndex) {
   setTimeout(() => {
     if (S.mode === "over") return;
     if (S.zombies.some((z) => z.x <= CFG.towerEdgeX)) endRun("lose");
-  }, 700);
+  }, 1000);
 }
 
 function showFeedback(q, correct, bonus, pierce) {
@@ -1416,10 +1507,10 @@ function showFeedback(q, correct, bonus, pierce) {
   pts.className = "fb-pts";
   if (correct) {
     pts.textContent = "+1 CORRECT" + (bonus > 0 ? "  +" + bonus + " SPEED" : "") +
-      "  BLAST x" + pierce;
+      (pierce > 1 ? "  COMBO x" + S.streak + ", BLAST TAKES " + pierce : "");
   } else {
-    pts.innerHTML = "NO POINTS &middot; EVERY ZOMBIE JUMPS " + CFG.hopSeconds +
-      " SECONDS CLOSER &middot; STREAK RESET";
+    pts.innerHTML = "NO POINTS &middot; THE SPELL MISFIRES &middot; EVERY ZOMBIE HOPS " +
+      CFG.hopSeconds + " SECONDS CLOSER &middot; COMBO LOST";
   }
   box.appendChild(pts);
 
