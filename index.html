@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BUS 4040 - Wizard Tower Quiz</title>
+<style>
+/* ============================================================
+   BUS 4040 Wizard Tower Quiz - 8 bit study game
+   Single file. No server, no build step, no internet, no libraries.
+   ============================================================ */
+
+:root{
+  --sky-0:#0b0b24;
+  --sky-1:#161a4a;
+  --ink:#e8e8f5;
+  --ink-dim:#9b9bc0;
+  --panel:#141432;
+  --panel-2:#1e1e44;
+  --edge:#3d3d7a;
+  --gold:#f5c542;
+  --orange:#f0842b;
+  --red:#e0403a;
+  --green:#5fc95f;
+  --green-dk:#2c7a2c;
+  --purple:#8b47d6;
+  --cyan:#49d5e8;
+}
+
+*{box-sizing:border-box;}
+
+html,body{
+  margin:0;
+  padding:0;
+  background:#05050f;
+  color:var(--ink);
+  font-family:"Press Start 2P","Silkscreen","Consolas","Courier New",monospace;
+  font-size:14px;
+  line-height:1.65;
+  -webkit-font-smoothing:none;
+}
+
+body{
+  display:flex;
+  justify-content:center;
+  padding:18px 12px 60px;
+  min-height:100vh;
+}
+
+/* pixel starfield behind everything */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  background:
+    radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 50%),
+    radial-gradient(1px 1px at 34% 62%, #9fd 50%, transparent 50%),
+    radial-gradient(1px 1px at 58% 24%, #fff 50%, transparent 50%),
+    radial-gradient(1px 1px at 77% 71%, #ffd 50%, transparent 50%),
+    radial-gradient(1px 1px at 88% 36%, #fff 50%, transparent 50%),
+    radial-gradient(1px 1px at 22% 84%, #adf 50%, transparent 50%),
+    linear-gradient(#05050f, #0b0b24);
+  opacity:.9;
+  z-index:-2;
+}
+
+/* scanlines */
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:repeating-linear-gradient(
+    to bottom,
+    rgba(0,0,0,0) 0px,
+    rgba(0,0,0,0) 2px,
+    rgba(0,0,0,.20) 3px,
+    rgba(0,0,0,.20) 4px
+  );
+  z-index:9999;
+}
+
+.shell{
+  width:100%;
+  max-width:880px;
+}
+
+/* ---------- chunky pixel frame helper ---------- */
+.frame{
+  background:var(--panel);
+  border:4px solid var(--edge);
+  box-shadow:
+    0 0 0 4px #05050f,
+    0 0 0 8px var(--panel-2),
+    0 8px 0 8px #000;
+  padding:16px;
+  margin-bottom:26px;
+}
+
+h1{
+  font-size:20px;
+  margin:0 0 6px;
+  color:var(--gold);
+  letter-spacing:1px;
+  text-shadow:3px 3px 0 #000, 0 0 12px rgba(245,197,66,.35);
+  line-height:1.4;
+}
+
+.sub{
+  color:var(--ink-dim);
+  font-size:11px;
+  margin:0;
+  letter-spacing:.5px;
+}
+
+/* ---------- HUD ---------- */
+.hud{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-bottom:8px;
+}
+.hud .cell{
+  flex:1 1 auto;
+  min-width:96px;
+  background:#0a0a1e;
+  border:3px solid var(--edge);
+  padding:6px 8px;
+  text-align:center;
+}
+.hud .k{
+  display:block;
+  font-size:8px;
+  color:var(--ink-dim);
+  letter-spacing:1px;
+}
+.hud .v{
+  display:block;
+  font-size:14px;
+  color:var(--gold);
+  margin-top:3px;
+}
+.hud .v.warn{color:var(--red);}
+.hud .v.good{color:var(--green);}
+
+/* ---------- canvas ---------- */
+.screen-wrap{
+  position:relative;
+  background:#000;
+  border:3px solid var(--edge);
+  line-height:0;
+}
+canvas{
+  display:block;
+  width:100%;
+  height:auto;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+.danger-flash{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  box-shadow:inset 0 0 0 6px var(--red);
+  opacity:0;
+  transition:opacity .12s linear;
+}
+.danger-flash.on{opacity:.85;}
+
+/* ---------- question panel ---------- */
+.qmeta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  font-size:9px;
+  color:var(--ink-dim);
+  letter-spacing:1px;
+  margin-bottom:10px;
+}
+.tag{
+  background:var(--purple);
+  color:#fff;
+  padding:4px 8px;
+  border:2px solid #000;
+  font-size:9px;
+}
+.tag.week{background:var(--cyan);color:#052;}
+
+.qtext{
+  font-size:14px;
+  line-height:1.8;
+  margin:0 0 16px;
+  color:#fff;
+}
+
+.choices{
+  display:grid;
+  gap:8px;
+}
+.choice{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  width:100%;
+  text-align:left;
+  font-family:inherit;
+  font-size:12px;
+  line-height:1.7;
+  color:var(--ink);
+  background:var(--panel-2);
+  border:3px solid var(--edge);
+  padding:11px 12px;
+  cursor:pointer;
+  box-shadow:0 4px 0 #000;
+  transition:none;
+}
+.choice:hover:not(:disabled){
+  background:#2a2a5e;
+  border-color:var(--gold);
+  transform:translate(0,-2px);
+  box-shadow:0 6px 0 #000;
+}
+.choice:active:not(:disabled){
+  transform:translate(0,2px);
+  box-shadow:0 2px 0 #000;
+}
+.choice:disabled{cursor:default;opacity:.75;}
+.choice .key{
+  flex:0 0 auto;
+  background:#000;
+  color:var(--gold);
+  border:2px solid var(--edge);
+  width:26px;
+  height:26px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:11px;
+}
+.choice.correct{
+  background:#14431a;
+  border-color:var(--green);
+  opacity:1;
+}
+.choice.correct .key{color:var(--green);border-color:var(--green);}
+.choice.wrong{
+  background:#48141a;
+  border-color:var(--red);
+  opacity:1;
+}
+.choice.wrong .key{color:var(--red);border-color:var(--red);}
+
+/* ---------- feedback ---------- */
+.feedback{
+  margin-top:16px;
+  border:3px solid var(--edge);
+  background:#0a0a1e;
+  padding:14px;
+}
+.feedback.right{border-color:var(--green);}
+.feedback.miss{border-color:var(--red);}
+.fb-head{
+  font-size:15px;
+  margin:0 0 10px;
+  letter-spacing:1px;
+}
+.feedback.right .fb-head{color:var(--green);}
+.feedback.miss .fb-head{color:var(--red);}
+.fb-body{
+  font-size:12px;
+  line-height:1.85;
+  margin:0 0 10px;
+  color:var(--ink);
+}
+.fb-where{
+  font-size:10px;
+  color:var(--cyan);
+  letter-spacing:1px;
+  margin:0;
+}
+.fb-pts{
+  font-size:11px;
+  color:var(--gold);
+  margin:0 0 8px;
+  letter-spacing:1px;
+}
+
+/* ---------- buttons ---------- */
+.btn{
+  font-family:inherit;
+  font-size:12px;
+  letter-spacing:1px;
+  color:#0a0a1e;
+  background:var(--gold);
+  border:3px solid #000;
+  padding:12px 18px;
+  cursor:pointer;
+  box-shadow:0 5px 0 #6b5316, 0 5px 0 3px #000;
+  margin:6px 8px 10px 0;
+}
+.btn:hover{background:#ffd75e;transform:translate(0,-2px);box-shadow:0 7px 0 #6b5316,0 7px 0 3px #000;}
+.btn:active{transform:translate(0,3px);box-shadow:0 2px 0 #6b5316,0 2px 0 3px #000;}
+.btn.alt{background:var(--cyan);box-shadow:0 5px 0 #1d6b76,0 5px 0 3px #000;}
+.btn.alt:hover{background:#6fe4f4;box-shadow:0 7px 0 #1d6b76,0 7px 0 3px #000;}
+.btn.ghost{background:var(--panel-2);color:var(--ink);box-shadow:0 5px 0 #000,0 5px 0 3px #000;}
+.btn.ghost:hover{background:#2a2a5e;}
+.btn.small{font-size:10px;padding:8px 12px;}
+
+/* ---------- title / results ---------- */
+.center{text-align:center;}
+
+.howto{
+  background:#0a0a1e;
+  border:3px solid var(--edge);
+  padding:14px;
+  margin:16px 0;
+  font-size:11px;
+  line-height:2;
+  color:var(--ink-dim);
+  text-align:left;
+}
+.howto b{color:var(--gold);}
+.howto .hl{color:var(--green);}
+.howto .bad{color:var(--red);}
+
+.banner{
+  font-size:26px;
+  letter-spacing:3px;
+  margin:6px 0 4px;
+  text-shadow:4px 4px 0 #000;
+  line-height:1.4;
+}
+.banner.lose{color:var(--red);}
+.banner.win{color:var(--green);}
+
+.stats{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:8px;
+  margin:18px 0;
+}
+.stat{
+  background:#0a0a1e;
+  border:3px solid var(--edge);
+  padding:10px 6px;
+}
+.stat .k{display:block;font-size:8px;color:var(--ink-dim);letter-spacing:1px;}
+.stat .v{display:block;font-size:18px;color:var(--gold);margin-top:5px;}
+.stat .v.good{color:var(--green);}
+.stat .v.bad{color:var(--red);}
+
+.section-title{
+  font-size:13px;
+  color:var(--gold);
+  letter-spacing:2px;
+  margin:22px 0 10px;
+  border-bottom:3px solid var(--edge);
+  padding-bottom:8px;
+}
+
+.concepts{list-style:none;padding:0;margin:0;text-align:left;}
+.concepts li{
+  background:#0a0a1e;
+  border-left:6px solid var(--red);
+  padding:10px 12px;
+  margin-bottom:7px;
+  font-size:11px;
+  line-height:1.8;
+}
+.concepts li .cn{color:#fff;}
+.concepts li .cw{color:var(--cyan);font-size:9px;letter-spacing:1px;}
+.concepts li .cc{color:var(--red);font-size:9px;}
+.all-clear{
+  background:#14431a;
+  border:3px solid var(--green);
+  padding:14px;
+  font-size:12px;
+  color:var(--green);
+  text-align:center;
+}
+
+.review{text-align:left;max-height:420px;overflow-y:auto;padding-right:6px;}
+.review-item{
+  background:#0a0a1e;
+  border:3px solid var(--edge);
+  border-left-width:7px;
+  padding:12px;
+  margin-bottom:9px;
+  font-size:11px;
+  line-height:1.8;
+}
+.review-item.ok{border-left-color:var(--green);}
+.review-item.no{border-left-color:var(--red);}
+.review-item .rq{color:#fff;display:block;margin-bottom:7px;}
+.review-item .rl{display:block;color:var(--ink-dim);}
+.review-item .rl b{color:var(--ink);font-weight:normal;}
+.review-item .ra-ok{color:var(--green);}
+.review-item .ra-no{color:var(--red);}
+.review-item .rw{color:var(--cyan);font-size:9px;letter-spacing:1px;display:block;margin-top:6px;}
+
+.hidden{display:none !important;}
+
+footer{
+  text-align:center;
+  font-size:9px;
+  color:#4a4a70;
+  letter-spacing:1px;
+  line-height:2;
+  margin-top:10px;
+}
+
+@media (max-width:640px){
+  html,body{font-size:12px;}
+  h1{font-size:15px;}
+  .banner{font-size:19px;}
+  .qtext{font-size:12px;}
+  .choice{font-size:11px;}
+  .hud .cell{min-width:72px;}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ============ TITLE ============ -->
+  <section id="screen-title" class="frame center">
+    <h1>WIZARD TOWER<br>BUS 4040 QUIZ</h1>
+    <p class="sub">AI FOR BUSINESS APPLICATIONS &middot; WEEKS 1-3</p>
+
+    <div class="howto">
+      <b>&gt; THE SITUATION</b><br>
+      You are the wizard on the tower. Zombies shuffle toward you from the east.
+      Your spellbook is the course material from weeks 1 through 3.<br><br>
+
+      <b>&gt; HOW IT WORKS</b><br>
+      &bull; 20 questions, shuffled fresh every run.<br>
+      &bull; <span class="hl">Every answer fires a fireball</span> at the closest zombie.<br>
+      &bull; <span class="hl">Right answer:</span> +1 point, plus up to +5 for answering fast.
+      The blast clears 2 zombies.<br>
+      &bull; <span class="bad">Wrong answer:</span> no points, the spell fizzles and only gets 1,
+      and every zombie hops 2 seconds closer.<br>
+      &bull; <span class="hl">3 right in a row:</span> the blast widens to 3.
+      <span class="hl">6 in a row:</span> 4.<br>
+      &bull; A zombie touches the tower and the run is over.<br>
+      &bull; The clock stops while you read the explanation. Take your time there.<br>
+      &bull; Waves get faster and thicker the longer you last.<br><br>
+
+      <b>&gt; CONTROLS</b><br>
+      Click an answer, or press <b>1 2 3 4</b>. For true/false press <b>T</b> or <b>F</b>.
+      Press <b>ENTER</b> to move on after the explanation.
+    </div>
+
+    <button class="btn" id="btn-start">START RUN</button>
+    <button class="btn ghost small" id="btn-sound">SOUND: ON</button>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="screen-game" class="frame hidden">
+    <div class="hud">
+      <div class="cell"><span class="k">SCORE</span><span class="v" id="hud-score">0</span></div>
+      <div class="cell"><span class="k">QUESTION</span><span class="v" id="hud-q">1/20</span></div>
+      <div class="cell"><span class="k">STREAK</span><span class="v" id="hud-streak">0</span></div>
+      <div class="cell"><span class="k">SPEED BONUS</span><span class="v good" id="hud-bonus">+5</span></div>
+      <div class="cell"><span class="k">WAVE</span><span class="v" id="hud-wave">1</span></div>
+    </div>
+
+    <div class="screen-wrap">
+      <canvas id="stage" width="320" height="180"></canvas>
+      <div class="danger-flash" id="danger"></div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <div class="qmeta">
+        <span class="tag" id="q-topic">TOPIC</span>
+        <span id="q-type">MULTIPLE CHOICE</span>
+      </div>
+      <p class="qtext" id="q-text">Question goes here.</p>
+      <div class="choices" id="q-choices"></div>
+      <div id="feedback-slot"></div>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="screen-results" class="frame center hidden">
+    <h2 class="banner" id="res-banner">GAME OVER</h2>
+    <p class="sub" id="res-sub">The horde reached the tower.</p>
+
+    <div class="stats">
+      <div class="stat"><span class="k">FINAL SCORE</span><span class="v" id="res-score">0</span></div>
+      <div class="stat"><span class="k">CORRECT</span><span class="v good" id="res-right">0</span></div>
+      <div class="stat"><span class="k">MISSED</span><span class="v bad" id="res-wrong">0</span></div>
+      <div class="stat"><span class="k">ACCURACY</span><span class="v" id="res-acc">0%</span></div>
+      <div class="stat"><span class="k">BEST STREAK</span><span class="v" id="res-streak">0</span></div>
+      <div class="stat"><span class="k">ZOMBIES SLAIN</span><span class="v" id="res-kills">0</span></div>
+      <div class="stat"><span class="k">WAVE REACHED</span><span class="v" id="res-wave">1</span></div>
+      <div class="stat"><span class="k">TIME SURVIVED</span><span class="v" id="res-time">0s</span></div>
+    </div>
+
+    <h3 class="section-title">CONCEPTS TO WORK ON</h3>
+    <div id="res-concepts"></div>
+
+    <h3 class="section-title">ANSWER REVIEW</h3>
+    <div class="review" id="res-review"></div>
+
+    <div style="margin-top:22px;">
+      <button class="btn" id="btn-retry-missed">RETRY MISSED ONLY</button>
+      <button class="btn alt" id="btn-play-again">PLAY AGAIN</button>
+    </div>
+  </section>
+
+  <footer>
+    BUILT FROM THE BUS 4040 WEEK 1-3 NARRATIVES AND HANDOUTS.<br>
+    NO INTERNET REQUIRED &middot; RUNS FROM A SINGLE FILE
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ==========================================================
+   1. QUESTION BANK
+   Every fact below is taken from the BUS 4040 week 1-3 files.
+   Nothing here comes from outside that material.
+   ========================================================== */
+
+const QUESTIONS = [
+
+  /* ---------------- WEEK 1 ---------------- */
+  {
+    week: 1,
+    topic: "Course structure",
+    type: "mc",
+    q: "According to the Week 1 overview, what will you NOT learn to do in this class?",
+    choices: [
+      "Write programs yourself",
+      "Use AI tools",
+      "Work on a team",
+      "Use GitHub"
+    ],
+    answer: 0,
+    why: "Week 1 states plainly that you will not learn to program in this class. The instructor shows you tools, you decide what gets built, and AI does the building."
+  },
+  {
+    week: 1,
+    topic: "Course structure",
+    type: "mc",
+    q: "How much of your final grade comes from Peer Review?",
+    choices: ["5%", "10%", "15%", "25%"],
+    answer: 2,
+    why: "Peer Review is worth 15%. It is structured feedback on how your teammates participated, which is why collegiality is part of the grade."
+  },
+  {
+    week: 1,
+    topic: "Why AI in business",
+    type: "tf",
+    q: "Week 1 says that until recently, the bottleneck in building software was expert human software engineers.",
+    choices: ["TRUE", "FALSE"],
+    answer: 0,
+    why: "True. The person with the business problem described it roughly, handed it off, and hoped for an acceptable outcome. AI removes that bottleneck and shifts the work left, toward business leaders and product owners."
+  },
+  {
+    week: 1,
+    topic: "GitHub accounts",
+    type: "tf",
+    q: "If you already have a GitHub account, the homework tells you to create a second one using your U of I email.",
+    choices: ["TRUE", "FALSE"],
+    answer: 1,
+    why: "False. The instruction is the opposite: do not create a second account. Add your U of I email to the account you already have, so you keep your existing history and do not spend the semester switching accounts."
+  },
+  {
+    week: 1,
+    topic: "Why version control",
+    type: "mc",
+    q: "Week 1 says that when a tool can generate three hundred lines in twenty seconds, the real questions change. Which set of questions does version control answer?",
+    choices: [
+      "How fast can I ship, and how cheap is it?",
+      "Can I tell what changed, can I undo it, and can somebody check it before it reaches a customer?",
+      "Which model wrote this, and how many tokens did it cost?",
+      "Who owns the code, and can I sell it?"
+    ],
+    answer: 1,
+    why: "Version control is the answer to all three of those questions. That is why the course calls it the foundation for moving fast safely."
+  },
+
+  /* ---------------- WEEK 2 ---------------- */
+  {
+    week: 2,
+    topic: "History of Git",
+    type: "mc",
+    q: "Who created Git, and what prompted it?",
+    choices: [
+      "A team at GitHub, to sell hosting",
+      "Linus Torvalds in 2005, for Linux kernel work after the project lost access to its proprietary tool",
+      "Microsoft in 1995, to version entire projects on a central server",
+      "The Linux Foundation in 2011, to replace SSH keys"
+    ],
+    answer: 1,
+    why: "Week 2 covers this in the short history of version control. Linus Torvalds released Git in 2005 as a free, fast, decentralized framework after the Linux kernel project lost access to its proprietary tool."
+  },
+  {
+    week: 2,
+    topic: "How Git works",
+    type: "tf",
+    q: "With Git, every developer holds a full copy of the entire history.",
+    choices: ["TRUE", "FALSE"],
+    answer: 0,
+    why: "True, and that is the point of a decentralized system. Because everyone has the whole history, there is no single bottleneck and no single point of failure. The centralized systems of the 1990s and 2000s required everyone to depend on one central server."
+  },
+  {
+    week: 2,
+    topic: "Creating a repo",
+    type: "mc",
+    q: "When you create a repo on the GitHub website, why does Week 2 insist you turn on \"Add README\"?",
+    choices: [
+      "It is required before the repo can be made public",
+      "It creates an initial commit, which maps the repo to the main branch",
+      "It turns on two-factor authentication for the repo",
+      "It lets you clone over HTTPS instead of SSH"
+    ],
+    answer: 1,
+    why: "Creating the README creates an initial commit, and that commit maps the repo to the main branch. Without it the repo is empty when you clone it."
+  },
+  {
+    week: 2,
+    topic: "Git commands",
+    type: "mc",
+    q: "In the multiverse picture from Week 2, what does clone do?",
+    choices: [
+      "Creates a new timeline branching off main",
+      "Copies the repo from GitHub down to your local computer",
+      "Sends your local changes up to GitHub",
+      "Merges your branch back into main"
+    ],
+    answer: 1,
+    why: "Clone copies the repo from GitHub to your local computer. Creating a new timeline is checkout of a branch, sending changes up is push, and merging back into main is the pull request."
+  },
+  {
+    week: 2,
+    topic: "Git commands",
+    type: "mc",
+    q: "You have already run git commit. What does git push do next?",
+    choices: [
+      "Stages your changed files so they are ready to commit",
+      "Updates the remote branch, so the branch is pushed up to GitHub",
+      "Merges your branch into main automatically",
+      "Deletes the branch once the work is finished"
+    ],
+    answer: 1,
+    why: "Commit updates your local branch. Push updates the remote branch on GitHub. Staging files is git add, and merging into main happens through a pull request that you review and merge."
+  },
+  {
+    week: 2,
+    topic: "AI safety and secrets",
+    type: "tf",
+    q: "It is fine to paste API keys and passwords into an AI prompt as long as the chat is private.",
+    choices: ["TRUE", "FALSE"],
+    answer: 1,
+    why: "False. The guidance is blunt: do not put passwords, keys, or secrets in AI prompts. It is easier to assume that everything you enter into an AI may become public information."
+  },
+  {
+    week: 2,
+    topic: "Push problems",
+    type: "mc",
+    q: "Your push fails with \"GH007: Your push would publish a private email address.\" What is the fix?",
+    choices: [
+      "Run gh auth login again to refresh your token",
+      "Turn off two-factor authentication",
+      "Set git config user.email to your GitHub noreply address, then push again",
+      "Switch the repo from private to public"
+    ],
+    answer: 2,
+    why: "That error means your git config user.email is set to your real address. Set it to the noreply address GitHub shows under Settings, Emails. It looks like 12345678+username@users.noreply.github.com. A failed token is a different error, Authentication failed."
+  },
+
+  /* ---------------- WEEK 3 ---------------- */
+  {
+    week: 3,
+    topic: "How AI models work",
+    type: "mc",
+    q: "How does Week 3 describe what an AI model actually does?",
+    choices: [
+      "It searches the internet and summarizes what it finds",
+      "It takes text in and produces text out, using math to predict the next word",
+      "It stores every document it was trained on and looks up answers",
+      "It runs small programs to compute an answer"
+    ],
+    answer: 1,
+    why: "You give it words and it uses math to predict the next word. Week 3 says that is all you really need to know to use AI successfully."
+  },
+  {
+    week: 3,
+    topic: "AI model families",
+    type: "mc",
+    q: "What are the four Claude model tiers, listed largest to smallest?",
+    choices: [
+      "Opus, Fable, Sonnet, Haiku",
+      "Fable, Opus, Sonnet, Haiku",
+      "Sonnet, Opus, Fable, Haiku",
+      "Haiku, Sonnet, Opus, Fable"
+    ],
+    answer: 1,
+    why: "Largest to smallest the tiers are Fable, Opus, Sonnet, Haiku. Fable is the top end model for the hardest problems and is priced accordingly. Sonnet is the cost effective everyday workhorse, and Haiku is fast and cheap for simple high volume work."
+  },
+  {
+    week: 3,
+    topic: "Tokens and cost",
+    type: "mc",
+    q: "Roughly how much of an English word is one token, on average?",
+    choices: [
+      "About one quarter of a word",
+      "About three quarters of a word",
+      "Exactly one word",
+      "About three words"
+    ],
+    answer: 1,
+    why: "A token is a chunk of text, roughly three quarters of an English word on average. Short common words are one token, and longer or unusual words get split into several."
+  },
+  {
+    week: 3,
+    topic: "Tokens and cost",
+    type: "tf",
+    q: "Every turn of a conversation resends the whole conversation, so a long chat costs more per message than a short one.",
+    choices: ["TRUE", "FALSE"],
+    answer: 0,
+    why: "True. You pay per token on both input and output, and the whole history goes back with every turn. That is also why long documents and big data pastes burn tokens quickly."
+  },
+  {
+    week: 3,
+    topic: "Harnesses and models",
+    type: "mc",
+    q: "Week 3 uses a music analogy for the difference between a harness and a model. Which way round is it?",
+    choices: [
+      "The harness is the music, the model is the music player",
+      "The harness is the music player, the model is the music",
+      "The harness is the speaker, the model is the playlist",
+      "The harness and the model are two names for the same thing"
+    ],
+    answer: 1,
+    why: "The harness is the music player and the model is the music. The harness is the program you use, such as the Claude app, Claude Code, Codex, Forge Code, or Ollama. The model is the AI behind it."
+  },
+  {
+    week: 3,
+    topic: "Harness features",
+    type: "mc",
+    q: "In the Claude harness, what is a Skill?",
+    choices: [
+      "Reusable instructions for a repeated task",
+      "A model turned loose to work through several steps on its own",
+      "A typed shortcut such as /clear",
+      "A standing instruction file read at the start of every session"
+    ],
+    answer: 0,
+    why: "A Skill is reusable instructions for a repeated task. A model turned loose over several steps is an Agent, a typed shortcut is a slash command, and the standing instruction file read every session is CLAUDE.md."
+  },
+  {
+    week: 3,
+    topic: "Open weight versus closed",
+    type: "mc",
+    q: "What is the business tradeoff between open weight models and closed models?",
+    choices: [
+      "Speed against accuracy",
+      "Control and privacy against convenience and top end quality",
+      "Parameter count against token count",
+      "Training cost against context window size"
+    ],
+    answer: 1,
+    why: "Closed models such as Claude, GPT, and Gemini run on the vendor's servers and you rent access. Open weight models such as Llama, Qwen, and Gemma can be downloaded and run on your own hardware. The tradeoff is control and privacy against convenience and top end quality."
+  },
+  {
+    week: 3,
+    topic: "MindRouter setup",
+    type: "mc",
+    q: "Cline will not connect to MindRouter and you get a connection timeout. What is the most likely cause?",
+    choices: [
+      "Your API key does not start with mr2_",
+      "You are off the University of Idaho VPN",
+      "You selected OpenAI Compatible instead of plain OpenAI",
+      "Streaming is switched on"
+    ],
+    answer: 1,
+    why: "MindRouter is only reachable from the campus network, so a connection timeout usually means you are off the U of I VPN. A bad key gives 401 Unauthorized, and a wrong base URL gives 404 Not Found. OpenAI Compatible is the correct provider setting, not a mistake."
+  }
+];
+
+/* ==========================================================
+   2. GAME TUNING
+   Starting values come straight from the brief:
+   a zombie needs 15 seconds to walk to the tower, a new one
+   spawns every 5 seconds, and a wrong answer shaves 2 seconds
+   off every zombie's remaining walk. Waves tighten both numbers.
+   ========================================================== */
+
+const CFG = {
+  walkStart: 17,      // seconds to cross the field at wave 1
+  walkMin: 11,        // never quicker than this
+  walkStep: 0.4,      // seconds removed per wave
+
+  spawnStart: 13,     // seconds between zombies at wave 1
+  spawnMin: 7,        // never tighter than this
+  spawnStep: 0.25,    // seconds removed per wave
+
+  waveEvery: 28,      // seconds of live play per wave
+  firstSpawn: 7,      // grace so the first question is readable
+  hopSeconds: 2,      // wrong answer penalty
+
+  // geometry, in canvas pixels
+  spawnX: 332,
+  towerEdgeX: 54,
+  lanes: [158, 166, 174],
+  staff: { x: 48, y: 56 }
+};
+
+const MAX_SPEED_BONUS = 5;
+const SECONDS_PER_BONUS_STEP = 3;
+
+/* ==========================================================
+   3. STATE
+   ========================================================== */
+
+const S = {
+  mode: "title",        // title | asking | feedback | over
+  deck: [],             // questions for this run, shuffled
+  index: 0,
+  score: 0,
+  streak: 0,
+  bestStreak: 0,
+  kills: 0,
+  elapsed: 0,           // live seconds, paused during feedback
+  wave: 1,
+  results: [],          // { qRef, chosen, correct, seconds }
+  askedAt: 0,
+  zombies: [],
+  fireballs: [],
+  bursts: [],
+  spawnTimer: 0,
+  nextSpawnIn: CFG.firstSpawn,
+  soundOn: true,
+  outcome: "lose"
+};
+
+/* ==========================================================
+   4. SOUND - Web Audio only, no files
+   ========================================================== */
+
+let audioCtx = null;
+function audio() {
+  if (!S.soundOn) return null;
+  if (!audioCtx) {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    audioCtx = new Ctor();
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function blip(freq, dur, type, vol, slideTo) {
+  const ac = audio();
+  if (!ac) return;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.type = type || "square";
+  osc.frequency.setValueAtTime(freq, ac.currentTime);
+  if (slideTo) {
+    osc.frequency.exponentialRampToValueAtTime(
+      Math.max(30, slideTo), ac.currentTime + dur
+    );
+  }
+  gain.gain.setValueAtTime(vol || 0.05, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  osc.connect(gain).connect(ac.destination);
+  osc.start();
+  osc.stop(ac.currentTime + dur);
+}
+
+function noiseBurst(dur, vol) {
+  const ac = audio();
+  if (!ac) return;
+  const frames = Math.floor(ac.sampleRate * dur);
+  const buf = ac.createBuffer(1, frames, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < frames; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+  }
+  const src = ac.createBufferSource();
+  const gain = ac.createGain();
+  src.buffer = buf;
+  gain.gain.setValueAtTime(vol || 0.08, ac.currentTime);
+  src.connect(gain).connect(ac.destination);
+  src.start();
+}
+
+const SFX = {
+  shoot:  () => blip(680, 0.18, "square", 0.05, 180),
+  hit:    () => { noiseBurst(0.18, 0.09); blip(150, 0.14, "sawtooth", 0.04, 60); },
+  right:  () => { blip(660, 0.09, "square", 0.05); setTimeout(() => blip(990, 0.14, "square", 0.05), 90); },
+  wrong:  () => blip(190, 0.3, "square", 0.06, 80),
+  spawn:  () => blip(110, 0.1, "triangle", 0.03),
+  wave:   () => { blip(440, 0.1, "square", 0.045); setTimeout(() => blip(330, 0.18, "square", 0.045), 110); },
+  lose:   () => { [440, 350, 260, 150].forEach((f, i) => setTimeout(() => blip(f, 0.26, "square", 0.06), i * 150)); },
+  win:    () => { [520, 660, 780, 1040].forEach((f, i) => setTimeout(() => blip(f, 0.2, "square", 0.05), i * 130)); }
+};
+
+/* ==========================================================
+   5. DOM HANDLES
+   ========================================================== */
+
+const el = (id) => document.getElementById(id);
+
+const scTitle   = el("screen-title");
+const scGame    = el("screen-game");
+const scResults = el("screen-results");
+
+const canvas = el("stage");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+const W = canvas.width;
+const H = canvas.height;
+
+/* ==========================================================
+   6. HELPERS
+   ========================================================== */
+
+function shuffle(list) {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = out[i]; out[i] = out[j]; out[j] = t;
+  }
+  return out;
+}
+
+function walkSeconds() {
+  return Math.max(CFG.walkMin, CFG.walkStart - (S.wave - 1) * CFG.walkStep);
+}
+function spawnSeconds() {
+  return Math.max(CFG.spawnMin, CFG.spawnStart - (S.wave - 1) * CFG.spawnStep);
+}
+function currentBonus() {
+  const secs = (performance.now() - S.askedAt) / 1000;
+  return Math.max(0, MAX_SPEED_BONUS - Math.floor(secs / SECONDS_PER_BONUS_STEP));
+}
+
+/* ==========================================================
+   7. PIXEL DRAWING
+   ========================================================== */
+
+function px(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x | 0, y | 0, w | 0, h | 0);
+}
+
+const STARS = (() => {
+  const a = [];
+  for (let i = 0; i < 40; i++) {
+    a.push({ x: Math.random() * W | 0, y: Math.random() * 120 | 0, b: Math.random() });
+  }
+  return a;
+})();
+
+function drawBackdrop(t) {
+  // sky bands
+  px(0, 0, W, 60, "#0b0b24");
+  px(0, 60, W, 40, "#141438");
+  px(0, 100, W, 50, "#1d2148");
+
+  // stars, gently twinkling
+  STARS.forEach((s, i) => {
+    const on = ((t * 2 + i * 37) % 100) / 100 > 0.25 * s.b;
+    if (on) px(s.x, s.y, 1, 1, s.b > 0.6 ? "#ffffff" : "#9fb4ff");
+  });
+
+  // moon
+  px(268, 18, 16, 16, "#f0eec8");
+  px(272, 14, 8, 24, "#f0eec8");
+  px(276, 22, 4, 4, "#d8d5ab");
+  px(272, 30, 3, 3, "#d8d5ab");
+
+  // far hills
+  for (let x = 0; x < W; x += 8) {
+    const h = 8 + Math.floor(6 * Math.sin(x * 0.07)) + 6;
+    px(x, 150 - h, 8, h, "#161a3c");
+  }
+  for (let x = 0; x < W; x += 8) {
+    const h = 5 + Math.floor(4 * Math.sin(x * 0.11 + 2));
+    px(x, 150 - h, 8, h, "#1e2450");
+  }
+
+  // ground
+  px(0, 150, W, H - 150, "#20361f");
+  px(0, 150, W, 3, "#2f5a2c");
+  // grass tufts and dirt speckle, deterministic so it does not shimmer
+  for (let x = 0; x < W; x += 7) {
+    const k = (x * 13) % 31;
+    px(x + (k % 5), 153 + (k % 4) * 6, 2, 1, "#2f5a2c");
+    px(x + ((k * 3) % 6), 160 + (k % 3) * 5, 1, 1, "#16250f");
+  }
+}
+
+function drawTower(t) {
+  const x = 10, top = 70;
+
+  // body
+  px(x, top, 40, H - top, "#5b5b78");
+  px(x, top, 40, H - top, "#5b5b78");
+  // brick rows
+  for (let by = top + 10; by < H; by += 8) {
+    px(x, by, 40, 1, "#41415c");
+    const off = ((by - top) / 8) % 2 === 0 ? 0 : 10;
+    for (let bx = x + off; bx < x + 40; bx += 20) px(bx, by - 7, 1, 7, "#41415c");
+  }
+  // lit edge and shadow edge
+  px(x, top, 3, H - top, "#7c7c9c");
+  px(x + 37, top, 3, H - top, "#3a3a52");
+
+  // battlements
+  px(x - 3, top - 8, 46, 9, "#6b6b8c");
+  for (let i = 0; i < 5; i++) px(x - 3 + i * 10, top - 14, 6, 7, "#6b6b8c");
+  px(x - 3, top - 8, 46, 2, "#8b8bb0");
+
+  // window with flickering candle
+  const flick = Math.sin(t * 6) > -0.4;
+  px(x + 15, top + 26, 10, 12, "#22223a");
+  px(x + 17, top + 29, 6, 8, flick ? "#f0a83c" : "#c9832b");
+  px(x + 18, top + 31, 4, 4, flick ? "#ffe08a" : "#e8b552");
+
+  // door
+  px(x + 14, H - 16, 12, 16, "#3a2a1c");
+  px(x + 16, H - 13, 8, 13, "#4d3826");
+  px(x + 22, H - 8, 2, 2, "#d8b455");
+}
+
+function drawWizard(t, casting) {
+  const bob = Math.sin(t * 2.4) > 0 ? 0 : 1;
+  const x = 22, y = 46 + bob;
+
+  // robe
+  px(x + 3, y + 14, 14, 16, "#5a2f9e");
+  px(x + 1, y + 24, 18, 6, "#4a2585");
+  px(x + 4, y + 16, 3, 12, "#7040c4");
+  // belt
+  px(x + 3, y + 22, 14, 2, "#d8b455");
+
+  // head and beard
+  px(x + 6, y + 8, 8, 7, "#e8c49a");
+  px(x + 5, y + 13, 10, 8, "#e6e6f2");
+  px(x + 7, y + 19, 6, 4, "#e6e6f2");
+  // eyes
+  px(x + 7, y + 10, 2, 2, "#1a1a2e");
+  px(x + 11, y + 10, 2, 2, "#1a1a2e");
+
+  // pointed hat
+  px(x + 4, y + 5, 12, 4, "#3f1f78");
+  px(x + 6, y + 1, 8, 5, "#4a2585");
+  px(x + 8, y - 3, 4, 5, "#4a2585");
+  px(x + 9, y - 6, 2, 4, "#4a2585");
+  px(x + 9, y - 7, 2, 2, "#d8b455");
+  px(x + 6, y + 4, 4, 2, "#d8b455");
+
+  // arm and staff, raised while casting
+  const ay = casting ? y + 8 : y + 16;
+  px(x + 16, ay, 5, 3, "#e8c49a");
+  px(x + 21, ay - 12, 2, 20, "#7a5228");
+  const glow = casting ? "#ffd86b" : "#f0842b";
+  px(x + 19, ay - 16, 6, 5, glow);
+  px(x + 20, ay - 17, 4, 7, glow);
+  if (casting) px(x + 18, ay - 17, 8, 7, "rgba(255,216,107,.35)");
+}
+
+function drawZombie(z, t) {
+  const x = z.x | 0;
+  const y = z.lane;
+  const step = Math.floor(t * 6 + z.seed) % 2;
+
+  // shadow
+  px(x - 1, y, 14, 2, "rgba(0,0,0,.35)");
+
+  // legs
+  px(x + 2, y - 6, 3, 6, step ? "#2c5c2c" : "#254f25");
+  px(x + 7, y - 6, 3, 6, step ? "#254f25" : "#2c5c2c");
+  // torso
+  px(x + 1, y - 14, 10, 9, "#3d7a3d");
+  px(x + 1, y - 14, 3, 9, "#4f9a4f");
+  // tattered edge
+  px(x + 2, y - 6, 2, 1, "#254f25");
+  px(x + 8, y - 6, 2, 1, "#254f25");
+  // arms reaching forward (leftward)
+  const swing = step ? 0 : 1;
+  px(x - 4, y - 12 + swing, 6, 3, "#4f9a4f");
+  px(x - 4, y - 8 - swing, 5, 3, "#3d7a3d");
+  // head
+  px(x + 2, y - 21, 8, 8, "#5fae5f");
+  px(x + 2, y - 21, 8, 2, "#4f9a4f");
+  // eyes and mouth
+  px(x + 3, y - 18, 2, 2, "#d83030");
+  px(x + 7, y - 18, 2, 2, "#d83030");
+  px(x + 4, y - 14, 4, 1, "#23401f");
+  // a couple of hair pixels
+  px(x + 3, y - 22, 2, 1, "#2c5c2c");
+  px(x + 7, y - 22, 1, 1, "#2c5c2c");
+}
+
+function drawFireball(f) {
+  const x = f.x | 0, y = f.y | 0;
+  // trail
+  for (let i = 1; i <= 3; i++) {
+    px(x - i * 3, y + (i % 2), 2, 2, i === 1 ? "#f0842b" : "#a33c14");
+  }
+  px(x - 1, y - 1, 5, 5, "#f0842b");
+  px(x, y, 3, 3, "#ffd86b");
+  px(x + 1, y + 1, 1, 1, "#ffffff");
+}
+
+function drawBurst(b) {
+  const r = b.r | 0;
+  const cx = b.x | 0, cy = b.y | 0;
+  const col = b.life > 0.22 ? "#ffd86b" : "#e0403a";
+  px(cx - r, cy - 1, r * 2, 3, col);
+  px(cx - 1, cy - r, 3, r * 2, col);
+  px(cx - r + 2, cy - r + 2, 3, 3, col);
+  px(cx + r - 4, cy - r + 2, 3, 3, col);
+  px(cx - r + 2, cy + r - 4, 3, 3, col);
+  px(cx + r - 4, cy + r - 4, 3, 3, col);
+}
+
+let castTimer = 0;
+
+function render(t) {
+  drawBackdrop(t);
+  drawTower(t);
+  drawWizard(t, castTimer > 0);
+
+  // zombies, back lane first so nearer ones overlap correctly
+  S.zombies.slice().sort((a, b) => a.lane - b.lane).forEach((z) => drawZombie(z, t));
+
+  S.fireballs.forEach(drawFireball);
+  S.bursts.forEach(drawBurst);
+
+  // danger stripe when something is close
+  const nearest = S.zombies.reduce((m, z) => Math.min(m, z.x), 9999);
+  if (nearest < 110 && S.mode !== "over") {
+    const pulse = Math.sin(t * 10) > 0;
+    if (pulse) {
+      px(0, 0, W, 2, "#e0403a");
+      px(0, H - 2, W, 2, "#e0403a");
+    }
+  }
+}
+
+/* ==========================================================
+   8. GAME OBJECTS
+   ========================================================== */
+
+function spawnZombie() {
+  const walk = walkSeconds();
+  const dist = CFG.spawnX - CFG.towerEdgeX;
+  S.zombies.push({
+    x: CFG.spawnX,
+    lane: CFG.lanes[Math.floor(Math.random() * CFG.lanes.length)],
+    speed: dist / walk,           // pixels per second
+    seed: Math.random() * 10
+  });
+  SFX.spawn();
+}
+
+function fireAt(pierce) {
+  castTimer = 0.35;
+  SFX.shoot();
+  // closest zombie is the one with the smallest x
+  let target = null;
+  S.zombies.forEach((z) => { if (!target || z.x < target.x) target = z; });
+  S.fireballs.push({
+    x: CFG.staff.x,
+    y: CFG.staff.y,
+    target: target,
+    pierce: pierce,
+    life: 3
+  });
+}
+
+function boom(x, y) {
+  S.bursts.push({ x: x, y: y, r: 2, life: 0.4 });
+  SFX.hit();
+}
+
+/* ==========================================================
+   9. MAIN LOOP
+   ========================================================== */
+
+let lastTime = 0;
+
+function tick(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000 || 0);
+  lastTime = now;
+  const t = now / 1000;
+
+  if (castTimer > 0) castTimer -= dt;
+
+  // the world only moves while a question is on the table
+  if (S.mode === "asking") {
+    S.elapsed += dt;
+
+    // wave ramp
+    const wave = 1 + Math.floor(S.elapsed / CFG.waveEvery);
+    if (wave > S.wave) {
+      S.wave = wave;
+      SFX.wave();
+      el("hud-wave").textContent = String(S.wave);
+    }
+
+    // spawning
+    S.spawnTimer += dt;
+    if (S.spawnTimer >= S.nextSpawnIn) {
+      S.spawnTimer = 0;
+      S.nextSpawnIn = spawnSeconds();
+      spawnZombie();
+    }
+
+    // zombies advance
+    for (let i = 0; i < S.zombies.length; i++) {
+      S.zombies[i].x -= S.zombies[i].speed * dt;
+    }
+
+    // live speed bonus readout
+    const b = currentBonus();
+    const bEl = el("hud-bonus");
+    bEl.textContent = "+" + b;
+    bEl.className = "v " + (b >= 4 ? "good" : b >= 2 ? "" : "warn");
+
+    // did anything touch the tower
+    const breach = S.zombies.some((z) => z.x <= CFG.towerEdgeX);
+    if (breach) {
+      flashDanger();
+      endRun("lose");
+    }
+  }
+
+  // fireballs fly even while the quiz is paused, so the shot resolves
+  for (let i = S.fireballs.length - 1; i >= 0; i--) {
+    const f = S.fireballs[i];
+    f.life -= dt;
+
+    // steer toward the target if it is still alive
+    let dx = 1, dy = 0;
+    if (f.target && S.zombies.indexOf(f.target) !== -1) {
+      dx = f.target.x + 5 - f.x;
+      dy = f.target.lane - 10 - f.y;
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len; dy /= len;
+    }
+    const SPEED = 260;
+    f.x += dx * SPEED * dt;
+    f.y += dy * SPEED * dt;
+
+    // collision against any zombie
+    for (let j = S.zombies.length - 1; j >= 0; j--) {
+      const z = S.zombies[j];
+      if (f.x > z.x - 4 && f.x < z.x + 14 && f.y > z.lane - 24 && f.y < z.lane + 3) {
+        boom(z.x + 5, z.lane - 10);
+        S.zombies.splice(j, 1);
+        S.kills++;
+        f.pierce--;
+        if (f.pierce <= 0) { f.life = -1; }
+        break;
+      }
+    }
+
+    if (f.life <= 0 || f.x > W + 20 || f.y > H + 20 || f.y < -20) {
+      S.fireballs.splice(i, 1);
+    }
+  }
+
+  // bursts
+  for (let i = S.bursts.length - 1; i >= 0; i--) {
+    const b = S.bursts[i];
+    b.life -= dt;
+    b.r += dt * 42;
+    if (b.life <= 0) S.bursts.splice(i, 1);
+  }
+
+  render(t);
+  requestAnimationFrame(tick);
+}
+
+function flashDanger() {
+  const d = el("danger");
+  d.classList.add("on");
+  setTimeout(() => d.classList.remove("on"), 420);
+}
+
+/* ==========================================================
+   10. QUIZ FLOW
+   ========================================================== */
+
+function startRun(deck) {
+  S.deck = deck;
+  S.index = 0;
+  S.score = 0;
+  S.streak = 0;
+  S.bestStreak = 0;
+  S.kills = 0;
+  S.elapsed = 0;
+  S.wave = 1;
+  S.results = [];
+  S.zombies = [];
+  S.fireballs = [];
+  S.bursts = [];
+  S.spawnTimer = 0;
+  S.nextSpawnIn = CFG.firstSpawn;
+  S.outcome = "lose";
+
+  scTitle.classList.add("hidden");
+  scResults.classList.add("hidden");
+  scGame.classList.remove("hidden");
+
+  el("hud-score").textContent = "0";
+  el("hud-streak").textContent = "0";
+  el("hud-wave").textContent = "1";
+
+  askQuestion();
+}
+
+function askQuestion() {
+  const q = S.deck[S.index];
+  S.mode = "asking";
+  S.askedAt = performance.now();
+
+  el("hud-q").textContent = (S.index + 1) + "/" + S.deck.length;
+  el("q-topic").textContent = q.topic.toUpperCase();
+  el("q-type").textContent = q.type === "tf" ? "TRUE OR FALSE" : "MULTIPLE CHOICE";
+  el("q-text").textContent = q.q;
+  el("feedback-slot").innerHTML = "";
+
+  const box = el("q-choices");
+  box.innerHTML = "";
+  q.choices.forEach((text, i) => {
+    const b = document.createElement("button");
+    b.className = "choice";
+    b.dataset.i = String(i);
+    const key = q.type === "tf" ? (i === 0 ? "T" : "F") : String(i + 1);
+    b.innerHTML = '<span class="key"></span><span class="txt"></span>';
+    b.querySelector(".key").textContent = key;
+    b.querySelector(".txt").textContent = text;
+    b.addEventListener("click", () => answer(i));
+    box.appendChild(b);
+  });
+}
+
+function answer(choiceIndex) {
+  if (S.mode !== "asking") return;
+
+  const q = S.deck[S.index];
+  const correct = choiceIndex === q.answer;
+  const seconds = (performance.now() - S.askedAt) / 1000;
+  const bonus = correct ? currentBonus() : 0;
+
+  S.mode = "feedback";
+
+  // scoring and streaks
+  if (correct) {
+    S.streak++;
+    if (S.streak > S.bestStreak) S.bestStreak = S.streak;
+    S.score += 1 + bonus;
+    SFX.right();
+  } else {
+    S.streak = 0;
+    SFX.wrong();
+    // the horde lurches forward by two seconds of walking
+    S.zombies.forEach((z) => { z.x -= z.speed * CFG.hopSeconds; });
+    flashDanger();
+  }
+
+  // Every answer throws a fireball. A correct one lands as a proper blast and
+  // catches the zombie behind the target too; a long streak widens the blast.
+  // A wrong answer still fires, but the spell fizzles and only takes out one.
+  const pierce = correct ? (S.streak >= 6 ? 4 : S.streak >= 3 ? 3 : 2) : 1;
+  fireAt(pierce);
+
+  S.results.push({ q: q, chosen: choiceIndex, correct: correct, seconds: seconds });
+
+  el("hud-score").textContent = String(S.score);
+  el("hud-streak").textContent = String(S.streak);
+
+  // lock the buttons and colour them
+  const buttons = el("q-choices").querySelectorAll(".choice");
+  buttons.forEach((b) => {
+    const i = Number(b.dataset.i);
+    b.disabled = true;
+    if (i === q.answer) b.classList.add("correct");
+    else if (i === choiceIndex) b.classList.add("wrong");
+  });
+
+  showFeedback(q, correct, bonus, pierce);
+
+  // a breach may have happened from the hop; resolve after the shot lands
+  setTimeout(() => {
+    if (S.mode === "over") return;
+    if (S.zombies.some((z) => z.x <= CFG.towerEdgeX)) endRun("lose");
+  }, 700);
+}
+
+function showFeedback(q, correct, bonus, pierce) {
+  const slot = el("feedback-slot");
+  const box = document.createElement("div");
+  box.className = "feedback " + (correct ? "right" : "miss");
+
+  const head = document.createElement("h3");
+  head.className = "fb-head";
+  head.textContent = correct ? "> DIRECT HIT" : "> THE HORDE LURCHES FORWARD";
+  box.appendChild(head);
+
+  const pts = document.createElement("p");
+  pts.className = "fb-pts";
+  if (correct) {
+    pts.textContent = "+1 CORRECT" + (bonus > 0 ? "  +" + bonus + " SPEED" : "") +
+      "  BLAST x" + pierce;
+  } else {
+    pts.innerHTML = "NO POINTS &middot; EVERY ZOMBIE JUMPS " + CFG.hopSeconds +
+      " SECONDS CLOSER &middot; STREAK RESET";
+  }
+  box.appendChild(pts);
+
+  const body = document.createElement("p");
+  body.className = "fb-body";
+  body.textContent = q.why;
+  box.appendChild(body);
+
+  const where = document.createElement("p");
+  where.className = "fb-where";
+  where.textContent = "REVIEW: WEEK " + q.week + " - " + q.topic.toUpperCase();
+  box.appendChild(where);
+
+  const next = document.createElement("button");
+  next.className = "btn small";
+  const last = S.index === S.deck.length - 1;
+  next.textContent = last ? "FINISH RUN  [ENTER]" : "NEXT QUESTION  [ENTER]";
+  next.addEventListener("click", nextQuestion);
+  box.appendChild(next);
+
+  slot.appendChild(box);
+  next.focus();
+}
+
+function nextQuestion() {
+  if (S.mode !== "feedback") return;
+  if (S.index >= S.deck.length - 1) {
+    endRun("win");
+    return;
+  }
+  S.index++;
+  askQuestion();
+}
+
+function endRun(outcome) {
+  if (S.mode === "over") return;
+  S.mode = "over";
+  S.outcome = outcome;
+  if (outcome === "win") SFX.win(); else SFX.lose();
+  setTimeout(showResults, 500);
+}
+
+/* ==========================================================
+   11. RESULTS
+   ========================================================== */
+
+function showResults() {
+  scGame.classList.add("hidden");
+  scResults.classList.remove("hidden");
+  window.scrollTo(0, 0);
+
+  const right = S.results.filter((r) => r.correct).length;
+  const wrong = S.results.length - right;
+  const acc = S.results.length ? Math.round((right / S.results.length) * 100) : 0;
+  const won = S.outcome === "win";
+
+  const banner = el("res-banner");
+  banner.textContent = won ? "TOWER HELD" : "GAME OVER";
+  banner.className = "banner " + (won ? "win" : "lose");
+
+  el("res-sub").textContent = won
+    ? "You answered all " + S.deck.length + " questions and the horde never reached you."
+    : "A zombie reached the tower after " + S.results.length + " of " + S.deck.length + " questions.";
+
+  el("res-score").textContent = String(S.score);
+  el("res-right").textContent = String(right);
+  el("res-wrong").textContent = String(wrong);
+  el("res-acc").textContent = acc + "%";
+  el("res-streak").textContent = String(S.bestStreak);
+  el("res-kills").textContent = String(S.kills);
+  el("res-wave").textContent = String(S.wave);
+  el("res-time").textContent = Math.round(S.elapsed) + "s";
+
+  renderConcepts();
+  renderReview();
+
+  const missed = S.results.filter((r) => !r.correct);
+  el("btn-retry-missed").classList.toggle("hidden", missed.length === 0);
+}
+
+function renderConcepts() {
+  const host = el("res-concepts");
+  host.innerHTML = "";
+
+  const missed = S.results.filter((r) => !r.correct);
+  const unseen = S.deck.slice(S.results.length);
+
+  if (missed.length === 0 && unseen.length === 0) {
+    const ok = document.createElement("div");
+    ok.className = "all-clear";
+    ok.textContent = "PERFECT RUN. NOTHING TO REVIEW.";
+    host.appendChild(ok);
+    return;
+  }
+
+  // group the misses by topic
+  const groups = {};
+  missed.forEach((r) => {
+    const key = r.q.topic;
+    if (!groups[key]) groups[key] = { topic: key, week: r.q.week, count: 0 };
+    groups[key].count++;
+  });
+
+  const list = document.createElement("ul");
+  list.className = "concepts";
+
+  Object.keys(groups)
+    .sort((a, b) => groups[b].count - groups[a].count)
+    .forEach((key) => {
+      const g = groups[key];
+      const li = document.createElement("li");
+      li.innerHTML =
+        '<span class="cn"></span><br>' +
+        '<span class="cw"></span> <span class="cc"></span>';
+      li.querySelector(".cn").textContent = g.topic;
+      li.querySelector(".cw").textContent = "GO BACK TO WEEK " + g.week;
+      li.querySelector(".cc").innerHTML =
+        "&middot; MISSED " + g.count + (g.count === 1 ? " QUESTION" : " QUESTIONS");
+      list.appendChild(li);
+    });
+
+  if (unseen.length) {
+    const li = document.createElement("li");
+    li.style.borderLeftColor = "#49d5e8";
+    li.innerHTML =
+      '<span class="cn"></span><br><span class="cw"></span>';
+    li.querySelector(".cn").textContent =
+      unseen.length + " question" + (unseen.length === 1 ? "" : "s") + " never came up";
+    li.querySelector(".cw").textContent =
+      "SURVIVE LONGER TO SEE THE REST OF THE DECK";
+    list.appendChild(li);
+  }
+
+  host.appendChild(list);
+}
+
+function renderReview() {
+  const host = el("res-review");
+  host.innerHTML = "";
+
+  if (S.results.length === 0) {
+    host.textContent = "No questions answered.";
+    return;
+  }
+
+  S.results.forEach((r, n) => {
+    const item = document.createElement("div");
+    item.className = "review-item " + (r.correct ? "ok" : "no");
+
+    const q = document.createElement("span");
+    q.className = "rq";
+    q.textContent = (n + 1) + ". " + r.q.q;
+    item.appendChild(q);
+
+    const yours = document.createElement("span");
+    yours.className = "rl";
+    yours.innerHTML = "YOUR ANSWER: <b></b>";
+    const yb = yours.querySelector("b");
+    yb.textContent = r.q.choices[r.chosen];
+    yb.className = r.correct ? "ra-ok" : "ra-no";
+    item.appendChild(yours);
+
+    if (!r.correct) {
+      const truth = document.createElement("span");
+      truth.className = "rl";
+      truth.innerHTML = "CORRECT ANSWER: <b class=\"ra-ok\"></b>";
+      truth.querySelector("b").textContent = r.q.choices[r.q.answer];
+      item.appendChild(truth);
+    }
+
+    const why = document.createElement("span");
+    why.className = "rl";
+    why.style.marginTop = "6px";
+    why.textContent = r.q.why;
+    item.appendChild(why);
+
+    const wk = document.createElement("span");
+    wk.className = "rw";
+    wk.textContent = "WEEK " + r.q.week + " - " + r.q.topic.toUpperCase();
+    item.appendChild(wk);
+
+    host.appendChild(item);
+  });
+}
+
+/* ==========================================================
+   12. WIRING
+   ========================================================== */
+
+el("btn-start").addEventListener("click", () => {
+  audio();
+  startRun(shuffle(QUESTIONS));
+});
+
+el("btn-play-again").addEventListener("click", () => {
+  startRun(shuffle(QUESTIONS));
+});
+
+el("btn-retry-missed").addEventListener("click", () => {
+  const missed = S.results.filter((r) => !r.correct).map((r) => r.q);
+  if (!missed.length) return;
+  startRun(shuffle(missed));
+});
+
+el("btn-sound").addEventListener("click", (e) => {
+  S.soundOn = !S.soundOn;
+  e.target.textContent = "SOUND: " + (S.soundOn ? "ON" : "OFF");
+  if (S.soundOn) { audio(); SFX.right(); }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (S.mode === "asking") {
+    const q = S.deck[S.index];
+    if (q.type === "tf") {
+      if (e.key === "t" || e.key === "T") answer(0);
+      if (e.key === "f" || e.key === "F") answer(1);
+    }
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= q.choices.length) answer(n - 1);
+  } else if (S.mode === "feedback") {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      nextQuestion();
+    }
+  }
+});
+
+/* kick off the render loop straight away so the title screen has life */
+requestAnimationFrame((t) => { lastTime = t; tick(t); });
+</script>
+</body>
+</html>
